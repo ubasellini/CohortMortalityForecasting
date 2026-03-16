@@ -146,6 +146,12 @@ for (i in 1:length(all.cou)){
     ## DSS
     dss.temp <- round(c(oos_dLC$dss,oos_LC$dss,oos_LLC$dss,oos_CCP$dss),2)
     
+    ## differences in RMSE between CCP and dLC
+    rmse.age.dLC <- oos_dLC$df.rmse %>% dplyr::select(ages,cohorts,dLC=sq.diff) 
+    rmse.age.CCP <- oos_CCP$df.rmse %>% dplyr::select(ages,cohorts,CCP=sq.diff)
+    df.rmse.age.temp <- rmse.age.dLC %>% left_join(rmse.age.CCP,by = join_by(ages, cohorts)) %>%
+      mutate(diff=dLC-CCP,cou=cou,sex=sex)  
+    
     ## all results
     res.temp <- c(rmse.temp,cpd.temp,dss.temp)
     df.res.temp <- tibble(cou=cou,sex=sex,model=c("dLC","LC","LLC","CCP"),
@@ -155,15 +161,16 @@ for (i in 1:length(all.cou)){
     if (i==1 & j==1){
       res <- res.temp
       df.res <- df.res.temp
+      df.rmse.age <- df.rmse.age.temp
     }else{
       res <- rbind(res,res.temp) 
       df.res <- df.res %>% 
         bind_rows(df.res.temp)
+      df.rmse.age <- df.rmse.age %>% 
+        bind_rows(df.rmse.age.temp)
     }
     
-    
   }
-  
   
 }
 
@@ -175,7 +182,7 @@ for (i in 1:nrow(res)){
 
 ## checking
 df.res
-save(res,df.res,file = "results/11_out10y.Rdata")
+save(res,df.res,df.rmse.age,file = "results/11_out10y.Rdata")
 
 ## finding the minimum
 df.res %>% 

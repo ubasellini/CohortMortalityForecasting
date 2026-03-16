@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 25: plotting Figure 5
+##  FILE 26: plotting Figure 6
 ##
 ##  sessionInfo() details:
 ##  
@@ -14,7 +14,7 @@
 ##  stats graphics grDevices utils datasets methods base 
 ## 
 ##  other attached packages:
-##  patchwork_1.2.0   viridis_0.6.5     viridisLite_0.4.2 lubridate_1.9.3   forcats_1.0.0    
+##  viridis_0.6.5     viridisLite_0.4.2 lubridate_1.9.3   forcats_1.0.0    
 ##  stringr_1.5.1     dplyr_1.1.4       purrr_1.0.2       readr_2.1.5      
 ##  tidyr_1.3.1       tibble_3.2.1      ggplot2_3.5.1     tidyverse_2.0.0 
 ##
@@ -29,191 +29,96 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 ## loading packages
 library(tidyverse)
 library(viridis)
-library(patchwork)
 
-## start by finding number of available ages for each cohort and population
-## all countries
-all.cou <- c("AUS","FRATNP","SWE","USA")
-c <- 1850:2019
-df.full.years <- expand.grid(country=all.cou,cohort=c,KEEP.OUT.ATTRS = F)
-df.full.years$ages <- NA
-i <- 1
-for (i in 1:length(all.cou)){
-  ## select country
-  cou <- all.cou[i]
-  ## loading data
-  load(file=paste0("data/input/",cou,"_F",".Rdata"))
-  j <- 1
-  for (j in 1:nc){
-    sum(!is.na(cE[,j]))
-    df.full.years <- df.full.years %>% 
-      mutate(ages=ifelse(country==cou & cohort==c[j], sum(!is.na(cE[,j])),ages))
-  }
-}
-
-## modify tibble names and column type
-df.full.years <- df.full.years %>% 
-  rename(cou=country) %>% 
-  mutate(cou=as.character(cou))
-
-## remove everything expect new tibble
-rm(list=setdiff(ls(), "df.full.years"))
-  
 ## loading main results
 load(file="results/13_main_results.Rdata")
 
-
 ## ---- plotting  -----
+
+## select ages
+my.ages <- c(40,60,80)
+
+## transform everything in rates scale
+df.mx <- df.lmx %>% 
+  mutate(obs=exp(obs),
+         dLC_med=exp(dLC_med),dLC_upp=exp(dLC_upp),dLC_low=exp(dLC_low),
+         CCP_med=exp(CCP_med),CCP_upp=exp(CCP_upp),CCP_low=exp(CCP_low))
 
 ## for plotting, set to NAs the fitted value of dLC 
 ## (as they are not the fitted ones but rather the observed ones)
-df.plot <- df.e0 %>% left_join(df.full.years) %>% 
-  # mutate(period=100+cohort,
-  #        forecast=ifelse(period > 2019, 1, 0),
-  #        dLC_med=ifelse(forecast==1,dLC_med,NA),
-  #        dLC_upp=ifelse(forecast==1,dLC_upp,NA),
-  #        dLC_low=ifelse(forecast==1,dLC_low,NA)) %>% 
+df.plot <- df.mx %>% 
+  filter(age%in%my.ages) %>% 
   mutate(cou=case_when(
-    cou == "AUS" ~ "Australia",
-    cou == "FRATNP" ~ "France",
-    cou == "SWE" ~ "Sweden",
-    cou == "USA" ~ "USA"),
-    sex=case_when(
-      sex == "F" ~ "Females",
-      sex == "M" ~ "Males"),
-    sex=factor(sex),cou=factor(cou))
+           cou == "AUS" ~ "Australia",
+           cou == "FRATNP" ~ "France",
+           cou == "SWE" ~ "Sweden",
+           cou == "USA" ~ "USA"),
+         sex=case_when(
+           sex == "F" ~ "Females",
+           sex == "M" ~ "Males"),
+         age_factor=case_when(
+           age == 40 ~ "Age 40",
+           age == 60 ~ "Age 60",
+           age == 80 ~ "Age 80"),
+         age_factor=factor(age_factor),sex=factor(sex),cou=factor(cou))
 
 ## df for models only
 df.model.med <- df.plot %>% 
-  dplyr::select(cohort,sex,cou,dLC=dLC_med,CCP=CCP_med) %>% 
+  dplyr::select(age,age_factor,cohort,sex,cou,dLC=dLC_med,CCP=CCP_med) %>% 
   ## remove backcast for Australia and USA
   mutate(CCP=case_when(
-    cou=="Australia" & cohort< 1921 ~ NA,
-    cou=="USA" & cohort< 1933 ~ NA,
+    cou=="Australia" & cohort + age < 1921 ~ NA,
+    cou=="USA" & cohort + age < 1933 ~ NA,
     TRUE ~ CCP)) %>% 
-  pivot_longer(-c(cohort,sex,cou),names_to = "model") %>% 
+  pivot_longer(-c(age_factor,age,cohort,sex,cou),names_to = "model") %>% 
   mutate(model=factor(model))
 df.model.ribbon <- df.plot %>%
-  dplyr::select(cohort, sex, cou,
+  dplyr::select(age, age_factor, cohort, sex, cou,
          CCP_low, CCP_upp,
          dLC_low, dLC_upp) %>%
-  pivot_longer(cols = everything()[-c(1:3)], 
+  mutate(CCP_low=case_when(
+    cou=="Australia" & cohort + age < 1921 ~ NA,
+    cou=="USA" & cohort + age < 1933 ~ NA,
+    TRUE ~ CCP_low),
+    CCP_upp=case_when(
+      cou=="Australia" & cohort + age < 1921 ~ NA,
+      cou=="USA" & cohort + age < 1933 ~ NA,
+      TRUE ~ CCP_upp)) %>% 
+  pivot_longer(cols = everything()[-c(1:5)], 
                names_to = c("model", ".value"), 
                names_pattern = "(.*)_(low|upp)") %>%
   rename(lower = low, upper = upp) %>%
   mutate(model = factor(model))
 
-## colors
+
+my.cols <- c("#ff7f00","#377eb8")
 my.cols <- c("#984ea3","#1b9e77")
-
-## test with raster
-
-# Define y-range of your plot (expand as needed)
-y_range <- range(c(df.plot$CCP_low,df.plot$CCP_upp), na.rm = TRUE) 
-
-# Build a grid of (cohort, y) so the raster fills entire plot
-c <- unique(df.plot$cohort)
-df.bg <- expand_grid(
-  cohort = c,
-  y = seq(floor(y_range[1]), ceiling(y_range[2]), by = 1)
-) %>%
-  left_join(df.plot %>% dplyr::select(cohort, ages,cou,sex) %>% distinct(),
-            by = "cohort", relationship = "many-to-many")
+my.cols <- c("#1b9e77", "#ff7f00")
 
 df.plot %>% 
-  ggplot(aes(x=cohort,group=sex,shape=sex))+
-  geom_raster(data = df.bg,
-              aes(x = cohort, y = y, fill = ages),
-              inherit.aes = FALSE) +
-  geom_point(aes(y=obs),size=1.5,stroke=1.05)+
-  facet_wrap(.~cou)+
+  ggplot(aes(x=cohort,group=age_factor))+
+  geom_point(aes(y=obs,shape=age_factor),size=0.95,stroke=0.65)+
+  facet_grid(sex~cou)+
+  geom_line(data = df.model.med,aes(y=value,color=model,group = interaction(model,age_factor)),
+            linewidth=0.8)+
+  geom_ribbon(data = df.model.ribbon,
+              aes(x = cohort, ymin = lower, ymax = upper,
+                  fill = model, group = interaction(model, age_factor)),
+              alpha = 0.3)+
   theme_bw(base_size = 22)+
-  geom_line(data = df.model.med,
-            aes(y=value,color=model,group = interaction(model,sex)),
-            linewidth=0.9)+
-  geom_ribbon(aes(ymin=CCP_low, ymax=CCP_upp),
-              alpha=0.6, fill=my.cols[1]) +
-  geom_ribbon(aes(ymin=dLC_low, ymax=dLC_upp),
-              alpha=0.6, fill=my.cols[2]) +
-  theme_bw(base_size = 22)+
-  scale_shape_manual(values=c(1,6))+
-  coord_cartesian(expand = FALSE) +   # removes margins
-  scale_fill_viridis_c(name = "ages \navailable",option="E", direction = -1, alpha = 0.75) +
+  labs(shape="Observed",y="death rates")+
   scale_color_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2])) +
-  labs(y="Life expectancy") 
-
-## find range of le for new plot
-le.min <- min(df.plot$obs,na.rm=T)-1.15
-le.max <- max(max(df.plot$CCP_upp,na.rm=T),max(df.plot$dLC_upp,na.rm=T))+1.15
-
-f1 <- df.plot %>% 
-  filter(cou%in%c("France","Sweden")) %>% 
-  ggplot(aes(x=cohort,group=sex,shape=sex))+
-  geom_raster(data = df.bg %>% 
-                filter(cou%in%c("France","Sweden")),
-              aes(x = cohort, y = y, fill = ages),
-              inherit.aes = FALSE) +
-  geom_point(aes(y=obs),size=1.05,stroke=0.5)+
-  facet_wrap(.~cou,ncol = 1)+
-  theme_bw(base_size = 22)+
-  geom_line(data = df.model.med %>% 
-              filter(cou%in%c("France","Sweden")),
-            aes(y=value,color=model,group = interaction(model,sex)),
-            linewidth=0.9)+
-  geom_ribbon(aes(ymin=CCP_low, ymax=CCP_upp),
-              alpha=0.6, fill=my.cols[1]) +
-  geom_ribbon(aes(ymin=dLC_low, ymax=dLC_upp),
-              alpha=0.6, fill=my.cols[2]) +
-  theme_bw(base_size = 22)+
-  scale_shape_manual(values=c(1,6))+
-  coord_cartesian(expand = FALSE) +   # removes margins
-  scale_fill_viridis_c(name = "ages \navailable",option="E", direction = -1, alpha = 0.75) +
-  scale_color_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2])) +
-  labs(y="Life expectancy")+
-  ylim(c(le.min,le.max))
-f1
-
-f2 <- df.plot %>% 
-  filter(!cou%in%c("France","Sweden")) %>% 
-  ## remove backcast for Australia and USA
-  mutate(CCP_low=case_when(
-    cou=="Australia" & cohort< 1921 ~ NA,
-    cou=="USA" & cohort< 1933 ~ NA,
-    TRUE ~ CCP_low),
-    CCP_upp=case_when(
-      cou=="Australia" & cohort< 1921 ~ NA,
-      cou=="USA" & cohort< 1933 ~ NA,
-      TRUE ~ CCP_upp)) %>% 
-  ggplot(aes(x=cohort,group=sex,shape=sex))+
-  geom_raster(data = df.bg %>% 
-                filter(!cou%in%c("France","Sweden")),
-              aes(x = cohort, y = y, fill = ages),
-              inherit.aes = FALSE,show.legend = FALSE) +
-  geom_point(aes(y=obs),size=1.5,stroke=1.05)+
-  facet_wrap(.~cou,ncol = 1)+
-  theme_bw(base_size = 22)+
-  geom_line(data = df.model.med %>% 
-              filter(!cou%in%c("France","Sweden")),
-            aes(y=value,color=model,group = interaction(model,sex)),
-            linewidth=0.9)+
-  geom_ribbon(aes(ymin=CCP_low, ymax=CCP_upp),
-              alpha=0.6, fill=my.cols[1]) +
-  geom_ribbon(aes(ymin=dLC_low, ymax=dLC_upp),
-              alpha=0.6, fill=my.cols[2]) +
-  theme_bw(base_size = 22)+
-  scale_shape_manual(values=c(1,6),guide="none")+
-  coord_cartesian(expand = FALSE) +   # removes margins
-  scale_fill_viridis_c(name = "ages \navailable",option="E", direction = -1, alpha = 0.75) +
-  scale_color_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2])) +
-  labs(y=NULL) +
-  xlim(c(1921,2019))+ylim(c(le.min,le.max))
-f2
-
-## putting plots together
-f1+f2+plot_layout(guides = 'collect', axes = 'collect', widths = c(1.5, 1))
+  scale_fill_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2]))+
+  scale_y_log10()+
+  scale_shape_manual(values=c(1,2,0))+
+  theme(axis.text.x= element_text(size=16))+
+  guides(
+    shape = guide_legend(order = 1, title = "Observed"),
+    color = guide_legend(order = 2, title = "Model"),
+    fill = guide_legend(order = 2, title = "Model")
+  )
 
 ## saving Figure
 ggsave(file="figs/F6.pdf",width = 12,height=8)
-
 
 ## END

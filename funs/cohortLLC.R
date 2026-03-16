@@ -40,9 +40,10 @@ cohort_LLC_fun <- function(ages,cohorts,Z,E,sex,
       if (print.sim & sim %in% round(seq(0,n.sim,length.out = 11))) cat("simulation",sim,"/",n.sim,"\n")
       
       ## simulate Poisson deaths from observed deaths
-      Zsim <- suppressWarnings(matrix(rpois(n=m*nc,lambda=c(Z)),m,nc))
-      # image.plot(c,x,t(cZ))
-      # image.plot(c,x,t(cZsim))
+      Zsim <- suppressWarnings(matrix(rpois(n=m*nc,lambda=c(fit$Z.hat)),m,nc))
+      # library(fields)
+      # image.plot(cohorts,ages,t(Z))
+      # image.plot(cohorts,ages,t(Zsim))
       ## refitting LC
       fit_cohort_LLC_sim <- fit_cohort_LLC_fun(ages=ages,cohorts=cohorts,Z=Zsim,E=E,
                                                sex=sex,print.last = F)

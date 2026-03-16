@@ -30,78 +30,114 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 library(tidyverse)
 library(viridis)
 
-## loading main results
-load(file="results/13_main_results.Rdata")
+## age and cohorts
+x <- 0:100
+c <- 1850:2019
+m <- length(x)
+nc <- length(c)
+AGES <- matrix(x,nrow=m,ncol=nc)
+COHORTS <- matrix(rep(c,each=m),nrow=m)
+PERIODS <- COHORTS + AGES
+last.t <- max(c)
 
-## ---- plotting  -----
+##---- first out-of-sample scenario (10y)
+h.out <- 10
+DF <- expand.grid(ages=x, cohorts=c) %>% 
+  mutate(periods=c(PERIODS),
+         dummy=case_when(
+           periods > last.t ~ NA,
+           periods > last.t - h.out & periods <= last.t ~ 0,
+           TRUE           ~ 1),
+         dummy=ifelse(cohorts>last.t - h.out,NA,dummy),
+         dummy=as.factor(dummy),
+         year = h.out)
 
-## select cohorts
-my.coh <- c(1950,2019)
+f1 <- DF %>%
+  ggplot(aes(cohorts,ages)) + 
+  geom_tile(aes(fill=dummy))+
+  scale_fill_viridis("", discrete = T,direction = -1,
+                    guide = guide_legend(reverse=TRUE),
+                    begin = 0.2, end = 0.8,
+                    na.value = "grey90",na.translate = F,
+                    labels = c("Test", "Training")) +
+  geom_vline(xintercept = c(seq(min(c)+10, 2000, 10),last.t - h.out), col="grey50", lty=3, lwd=0.2)+
+  geom_hline(yintercept = seq(10, 100, 10), col="grey50", lty=3, lwd=0.2)+
+  geom_abline(slope = -1, intercept = seq(1810, 2100,10), 
+              col="grey60", lty=3, lwd=0.2)+
+  scale_x_continuous(expand=c(0,0), breaks=c(seq(min(c), 2000,20),last.t - h.out,max(c))) +
+  scale_y_continuous(expand=c(0,0), breaks=c(seq(0, 100, 10)), labels = c(seq(0, 90, 10),"100+"))+
+  theme_bw() +
+  theme(axis.text = element_text(size=12),
+        axis.text.x=element_text(angle=45,hjust = 1),
+        axis.title = element_text(size=16),
+        legend.text = element_text(size=10),
+        panel.spacing.x=unit(1, "lines"))+
+  labs(y="Age",x="Cohort") 
 
-## transform everything in rates scale
-df.mx <- df.lmx %>% 
-  mutate(obs=exp(obs),
-         dLC_med=exp(dLC_med),dLC_upp=exp(dLC_upp),dLC_low=exp(dLC_low),
-         CCP_med=exp(CCP_med),CCP_upp=exp(CCP_upp),CCP_low=exp(CCP_low))
+## second exercise
+h.out <- 20
+DF1 <- expand.grid(ages=x, cohorts=c) %>% 
+  mutate(periods=c(PERIODS),
+         dummy=case_when(
+           periods > last.t ~ NA,
+           periods > last.t - h.out & periods <= last.t ~ 0,
+           TRUE           ~ 1),
+         dummy=ifelse(cohorts>last.t - h.out,NA,dummy),
+         dummy=as.factor(dummy),
+         year = h.out)
 
-## for plotting, set to NAs the fitted value of dLC 
-## (as they are not the fitted ones but rather the observed ones)
-df.plot <- df.mx %>% 
-  filter(cohort%in%my.coh) %>% 
-  mutate(cou=case_when(
-           cou == "AUS" ~ "Australia",
-           cou == "FRATNP" ~ "France",
-           cou == "SWE" ~ "Sweden",
-           cou == "USA" ~ "USA"),
-         sex=case_when(
-           sex == "F" ~ "Females",
-           sex == "M" ~ "Males"),
-         cohort=case_when(
-           cohort == 1950 ~ "Cohort 1950",
-           cohort == 2019 ~ "Cohort 2019"),
-         cohort=factor(cohort),sex=factor(sex),cou=factor(cou))
+## merging
+DF0 <- DF %>% 
+  bind_rows(DF1) %>% 
+  mutate(year=as.factor(year))
 
-## df for models only
-df.model.med <- df.plot %>% 
-  dplyr::select(age,cohort,sex,cou,dLC=dLC_med,CCP=CCP_med) %>% 
-  pivot_longer(-c(age,cohort,sex,cou),names_to = "model") %>% 
-  mutate(model=factor(model))
-df.model.ribbon <- df.plot %>%
-  dplyr::select(age, cohort, sex, cou,
-         CCP_low, CCP_upp,
-         dLC_low, dLC_upp) %>%
-  pivot_longer(cols = everything()[-c(1:4)], 
-               names_to = c("model", ".value"), 
-               names_pattern = "(.*)_(low|upp)") %>%
-  rename(lower = low, upper = upp) %>%
-  mutate(model = factor(model))
+year_names <- c(
+  `10` = "10y validation",
+  `20` = "20y validation"
+)
 
-
-my.cols <- c("#984ea3","#1b9e77")
-
-df.plot %>% 
-  ggplot(aes(x=age,group=cohort))+
-  geom_point(aes(y=obs,shape=cohort),size=1.75)+
-  facet_grid(sex~cou)+
-  geom_line(data = df.model.med,aes(y=value,color=model,group = interaction(model,cohort)),
-            linewidth=0.8)+
-  geom_ribbon(data = df.model.ribbon,
-              aes(ymin = lower, ymax = upper,
-                  fill = model, group = interaction(model, cohort)),
-              alpha = 0.3)+
-  theme_bw(base_size = 22)+
-  labs(shape="Observed",y="death rates")+
-  scale_color_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2])) +
-  scale_fill_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2]))+
-  scale_y_log10()+
-  theme(axis.text.x= element_text(size=16))+
-  guides(
-    shape = guide_legend(order = 1, title = "Observed"),
-    color = guide_legend(order = 2, title = "Model"),
-    fill = guide_legend(order = 2, title = "Model")
-  )
+DF0 %>%
+  ggplot(aes(cohorts,ages)) + 
+  geom_tile(aes(fill=dummy))+
+  scale_fill_viridis("", discrete = T,direction = -1,
+                     guide = guide_legend(reverse=TRUE),
+                     begin = 0.2, end = 0.8,
+                     na.value = "grey90",na.translate = F,
+                     labels = c("Test", "Training")) +
+  facet_grid(.~year,labeller = as_labeller(year_names))+
+  geom_vline(xintercept = c(seq(min(c)+10, 1990, 10),1999,2009,2019), col="grey50", lty=3, lwd=0.2)+
+  geom_hline(yintercept = seq(10, 100, 10), col="grey50", lty=3, lwd=0.2)+
+  geom_abline(slope = -1, intercept = c(seq(1810, 1990,10),seq(1999,2159,10)), 
+              col="grey60", lty=3, lwd=0.2)+
+  scale_x_continuous(expand=c(0,0), breaks=c(seq(min(c), 1990,20),max(c)-20,max(c)-10,max(c))) +
+  scale_y_continuous(expand=c(0,0), breaks=c(seq(0, 100, 10)), labels = c(seq(0, 90, 10),"100+"))+
+  theme_bw() +
+  theme(axis.text = element_text(size=12),
+        axis.text.x=element_text(angle=45,hjust = 1),
+        axis.title = element_text(size=16),
+        legend.text = element_text(size=10),
+        panel.spacing.x=unit(1, "lines"), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank())+
+  labs(y="Age",x="Cohort")
 
 ## saving Figure
-ggsave(file="figs/F5.pdf",width = 12,height=8)
+ggsave("figs/F5.pdf",width = 9, height = 4)
+
+## counting the number of green cells in each exercise
+DF %>% mutate(oos=case_when(
+  dummy == 1 ~ 0,
+  dummy == 0 ~ 1,
+  is.na(dummy) ~ NA)) %>% 
+  select(oos) %>% 
+  pull() %>% as.numeric(.) %>% sum(.,na.rm = T)
+
+DF1 %>% mutate(oos=case_when(
+  dummy == 1 ~ 0,
+  dummy == 0 ~ 1,
+  is.na(dummy) ~ NA)) %>% 
+  select(oos) %>% 
+  pull() %>% as.numeric(.) %>% sum(.,na.rm = T)
+
 
 ## END

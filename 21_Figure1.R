@@ -58,7 +58,7 @@ Cohort.all %>%
   mutate(brks=cut(log(Rate), breaks=brek, labels=labe)) %>% 
   ggplot(aes(Year,Age)) + 
   geom_tile(aes(fill=brks))+
-  scale_fill_viridis("", discrete = T,direction = -1,
+  scale_fill_viridis("Death Rates", discrete = T,direction = -1,
                      guide = guide_legend(reverse=TRUE),
                      na.value = "grey90") +
   geom_vline(xintercept = seq(min(Cohort.all$Year)+10, max(Cohort.all$Year), 10), col="grey50", lty=3, lwd=0.2)+
@@ -72,6 +72,7 @@ Cohort.all %>%
         axis.text.x=element_text(angle=45,hjust = 1),
         axis.title = element_text(size=16),
         legend.text = element_text(size=10),
+        legend.title = element_text(size=16),
         panel.spacing.x=unit(1, "lines"))+
   labs(y="Age",x="Cohort") +
   facet_wrap(.~Country)

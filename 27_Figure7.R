@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 24: plotting Figure 4
+##  FILE 27: plotting Figure 7
 ##
 ##  sessionInfo() details:
 ##  
@@ -35,8 +35,8 @@ load(file="results/13_main_results.Rdata")
 
 ## ---- plotting  -----
 
-## select ages
-my.ages <- c(40,60,80)
+## select cohorts
+my.coh <- c(1950,2019)
 
 ## transform everything in rates scale
 df.mx <- df.lmx %>% 
@@ -47,7 +47,7 @@ df.mx <- df.lmx %>%
 ## for plotting, set to NAs the fitted value of dLC 
 ## (as they are not the fitted ones but rather the observed ones)
 df.plot <- df.mx %>% 
-  filter(age%in%my.ages) %>% 
+  filter(cohort%in%my.coh) %>% 
   mutate(cou=case_when(
            cou == "AUS" ~ "Australia",
            cou == "FRATNP" ~ "France",
@@ -56,60 +56,45 @@ df.plot <- df.mx %>%
          sex=case_when(
            sex == "F" ~ "Females",
            sex == "M" ~ "Males"),
-         age_factor=case_when(
-           age == 40 ~ "Age 40",
-           age == 60 ~ "Age 60",
-           age == 80 ~ "Age 80"),
-         age_factor=factor(age_factor),sex=factor(sex),cou=factor(cou))
+         cohort=case_when(
+           cohort == 1950 ~ "Cohort 1950",
+           cohort == 2019 ~ "Cohort 2019"),
+         cohort=factor(cohort),sex=factor(sex),cou=factor(cou))
 
 ## df for models only
 df.model.med <- df.plot %>% 
-  dplyr::select(age,age_factor,cohort,sex,cou,dLC=dLC_med,CCP=CCP_med) %>% 
-  ## remove backcast for Australia and USA
-  mutate(CCP=case_when(
-    cou=="Australia" & cohort + age < 1921 ~ NA,
-    cou=="USA" & cohort + age < 1933 ~ NA,
-    TRUE ~ CCP)) %>% 
-  pivot_longer(-c(age_factor,age,cohort,sex,cou),names_to = "model") %>% 
+  dplyr::select(age,cohort,sex,cou,dLC=dLC_med,CCP=CCP_med) %>% 
+  pivot_longer(-c(age,cohort,sex,cou),names_to = "model") %>% 
   mutate(model=factor(model))
 df.model.ribbon <- df.plot %>%
-  dplyr::select(age, age_factor, cohort, sex, cou,
+  dplyr::select(age, cohort, sex, cou,
          CCP_low, CCP_upp,
          dLC_low, dLC_upp) %>%
-  mutate(CCP_low=case_when(
-    cou=="Australia" & cohort + age < 1921 ~ NA,
-    cou=="USA" & cohort + age < 1933 ~ NA,
-    TRUE ~ CCP_low),
-    CCP_upp=case_when(
-      cou=="Australia" & cohort + age < 1921 ~ NA,
-      cou=="USA" & cohort + age < 1933 ~ NA,
-      TRUE ~ CCP_upp)) %>% 
-  pivot_longer(cols = everything()[-c(1:5)], 
+  pivot_longer(cols = everything()[-c(1:4)], 
                names_to = c("model", ".value"), 
                names_pattern = "(.*)_(low|upp)") %>%
   rename(lower = low, upper = upp) %>%
   mutate(model = factor(model))
 
 
-my.cols <- c("#ff7f00","#377eb8")
 my.cols <- c("#984ea3","#1b9e77")
+my.cols <- c("#1b9e77", "#ff7f00")
 
 df.plot %>% 
-  ggplot(aes(x=cohort,group=age_factor))+
-  geom_point(aes(y=obs,shape=age_factor),size=0.95,stroke=0.65)+
+  ggplot(aes(x=age,group=cohort))+
+  geom_point(aes(y=obs,shape=cohort),size=1.75)+
   facet_grid(sex~cou)+
-  geom_line(data = df.model.med,aes(y=value,color=model,group = interaction(model,age_factor)),
+  geom_line(data = df.model.med,aes(y=value,color=model,group = interaction(model,cohort)),
             linewidth=0.8)+
   geom_ribbon(data = df.model.ribbon,
-              aes(x = cohort, ymin = lower, ymax = upper,
-                  fill = model, group = interaction(model, age_factor)),
+              aes(ymin = lower, ymax = upper,
+                  fill = model, group = interaction(model, cohort)),
               alpha = 0.3)+
   theme_bw(base_size = 22)+
   labs(shape="Observed",y="death rates")+
   scale_color_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2])) +
   scale_fill_manual(values = c("CCP" = my.cols[1], "dLC" = my.cols[2]))+
   scale_y_log10()+
-  scale_shape_manual(values=c(1,2,0))+
   theme(axis.text.x= element_text(size=16))+
   guides(
     shape = guide_legend(order = 1, title = "Observed"),
@@ -118,6 +103,6 @@ df.plot %>%
   )
 
 ## saving Figure
-ggsave(file="figs/F4.pdf",width = 12,height=8)
+ggsave(file="figs/F7.pdf",width = 12,height=8)
 
 ## END
