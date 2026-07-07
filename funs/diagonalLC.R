@@ -11,6 +11,25 @@
 
 ## wrapper function to obtain cohort forecasts 
 ## from a period LC forecasts
+# ages=x
+# years=t1
+# cohorts=c1
+# Z=Z1
+# E=E1
+# cZ=cZ1
+# cE=cE1
+# sex=sex
+# n.sim=n.sim
+# Alpha=NULL
+# Beta=NULL
+# Kappa=NULL
+# lambdaA=0
+# lambdaB=0
+# max.iter=1000
+# tol=1e-05
+# print.last=T
+# print.all=F
+
 
 diagonal_LC_fun <- function(ages,years,cohorts,
                             Z,E,cZ,cE,sex,

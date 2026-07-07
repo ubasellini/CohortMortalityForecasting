@@ -7,23 +7,113 @@
 ##
 ## --------------------------------------------------------- ##
 
+# ## cleaning the workspace
+# rm(list=ls(all=TRUE))
+# 
+# ## set up the directory where .R is saved (R-studio command)
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# setwd("~/WORK/CohortMortalityForecasting")
+# 
+# ## load packages
+# library(tidyverse)
+# library(forecast)
+# library(svcm)
+# library(MortalitySmooth)
+# library(MASS)
+# 
+# ## load useful functions
+# source("funs/diagonalLC.R")
+# source("funs/cohortLC.R")
+# source("funs/cohortLLC.R")
+# source("funs/CCPsplines.R")
+# source("funs/OutOfSample.R")
+# source("funs/LifetableMX.R")
+# ## all countries and sexes of interest
+# all.cou <- c("AUS","FRATNP","SWE","USA")
+# all.sex <- c("F","M")
+# 
+# ## length of out-of-sample exercise
+# h.out <- 10
+# 
+# ##----- looping over different populations -----
+# 
+# ## set seed for reproducibility
+# set.seed(1)
+# 
+# ## number of simulations
+# n.sim <- 250
+# 
+# ## width PIs
+# alpha <- 80
+# 
+# ## for loop
+# i <- j <- 1
+# 
+# ## select country
+# cou <- all.cou[i]
+# 
+# ## select sex
+# sex <- all.sex[j]
+# 
+# ## print current exercise
+# cat("analysing",cou,sex,"\n")
+# 
+# ## loading data
+# load(file=paste0("data/input/",cou,"_",sex,".Rdata"))
+# 
+# ## select out-of-sample data
+# last.t <- max(c)-h.out
+# t.out <- (last.t+1):max(c)
+# c1 <- c[1]:(last.t)
+# nc1 <- length(c1)
+# cZ1 <- cZ[,c%in%c1]
+# cE1 <- cE[,c%in%c1]
+# t1 <- t[1]:last.t
+# nt1 <- length(t1)
+# Z1 <- Z[,t%in%t1]
+# E1 <- E[,t%in%t1]
+# 
+# ## matrices containing index of APC
+# AGES <- matrix(x,nrow=m,ncol=nc1)
+# COHORTS <- matrix(rep(c1,each=m),nrow=m)
+# PERIODS <- COHORTS + AGES
+# 
+# ## set to NAs data after last observed year 
+# cZ1[PERIODS>last.t] <- NA
+# cE1[PERIODS>last.t] <- NA
+# cMX1 <- cZ1/cE1
+# cLMX1 <- log(cMX1)
 
+## fitting the diagonal CP-splines
 
-## wrapper function to obtain cohort forecasts 
-## from a period LC forecasts
+# ## arguments
+# ages=x
+# years=t1
+# cohorts=c1
+# Z=Z1
+# E=E1
+# cZ=cZ1
+# cE=cE1
+# sex=sex
+# n.sim=n.sim
+# yrs.exclude=NULL
+# decrease=TRUE
+# levels=c(95,50)
+# print.last=TRUE
+# print.all=TRUE
+# print.sim=TRUE
 
-diagonal_CPS_fun <- function(ages,years,cohorts,
-                             Z,E,cZ,cE,sex,
-                             Alpha=NULL,Beta=NULL,Kappa=NULL,
-                             lambdaA=0,lambdaB=0,
+diagonal_CPS_fun <- function(ages, years, cohorts, 
+                             Z, E, cZ, cE, sex,
                              n.sim=100,
-                             max.iter=1000,tol=1e-05,
-                             print.last=T,print.all=F){
-  
-  
+                             yrs.exclude=NULL,
+                             decrease=TRUE,
+                             levels=c(95,50),
+                             print.last=TRUE,
+                             print.all=TRUE,
+                             print.sim=TRUE){
   ## printing the model being fitted
-  cat("fitting the diagonal CPS model", '\n')
-  
+  cat("fitting the diagonal-CP-splines model", '\n')
   ## dimensions
   m <- length(ages)
   n <- length(years)
@@ -32,13 +122,78 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
   t.fore <- (years[n]+1):(cohorts[nc]+m+10)
   n.fore <- length(t.fore)
   
-  ## fit period LC
-  fit <- fit_period_LC_fun(ages = ages,years = years,
-                           Z=Z,E=E,sex=sex,n.fore=n.fore,
-                           n.sim=n.sim,
-                           Alpha = Alpha,Beta=Beta,Kappa=Kappa,
-                           max.iter = max.iter,tol=tol,
-                           print.last = print.last,print.all = print.all)
+  E2 <- matrix(999, m, n+n.fore)
+  E2[,1:n] <- E
+  Z2 <- matrix(99, m, n+n.fore)
+  Z2[,1:n] <- Z
+  WEI <- matrix(0, m, n+n.fore)
+  WEI[,1:n] <- 1
+  WEI[E==0] <- 0
+  WEI[is.na(Z)] <- 0
+  WEI1 <- WEI[,1:n]
+  ## eventually add weights=0 for user-defined years (e.g. wars)
+  if(!is.null(yrs.exclude)){
+    # WEI1 <- WEI
+    ## matrix with years
+    yrs.mat <- row(Z)+col(Z)+c[1]-2
+    ## where to exclude
+    whi.exclude <- which(yrs.mat%in%yrs.exclude)
+    ## include in the weights
+    WEI[whi.exclude] <- 0
+  }
+  ## to get good starting values for the lambdas-search
+  if (print.all) cat("Getting starting values ...", "\n")
+  FIT0 <- PSinfant(Y=Z, E=E, WEI=WEI1, lambdas=c(1,100), verbose=FALSE)
+  
+  ## function to extract the BIC for a given lambda
+  BIC1 <- function(par){
+    FIT1 <- PSinfant(Y=Z, E=E, lambdas=par, WEI=WEI1, ALPHAS.st=FIT0$ALPHAS)
+    FIT1$bic
+  }
+  ## optimizing lambdas using greedy grid search
+  if (print.all) cat("Optimizing smoothing parameters ...", "\n")
+  OPT1 <- cleversearch(BIC1, lower=c(-4, 1), upper=c(0, 5),
+                       ngrid=5, logscale=TRUE, verbose=FALSE)
+  ## optimal smoothing parameters lambdas
+  lambdas.hat <- OPT1$par
+  if (print.all) cat("Optimal smoothing parameters:", lambdas.hat, "\n")
+  ## estimating mortality with optimal lambdas
+  if (print.all) cat("Fitting observed data and computing derivatives ...", "\n")
+  FIT1 <- PSinfant(Y=Z, E=E, WEI=WEI1, lambdas=lambdas.hat, 
+                   ALPHAS.st=FIT0$ALPHAS, verbose=FALSE)
+  ## extract deltas
+  ETA1a <- FIT1$ETA1a
+  ETA1t <- FIT1$ETA1t
+  ## compute levels and deltas over ages
+  p.a.up <- (100 - (100-levels[1])/2)/100
+  p.a.low <- ((100-levels[1])/2)/100
+  delta.a.up <- apply(ETA1a, 1, quantile,
+                      probs=p.a.up, na.rm=TRUE)
+  delta.a.low <- apply(ETA1a, 1, quantile,
+                       probs=p.a.low, na.rm=TRUE)
+  ## compute levels and deltas over years
+  p.t.up <- (100 - (100-levels[2])/2)/100
+  p.t.low <- ((100-levels[2])/2)/100
+  delta.t.up <- apply(ETA1t, 1, quantile,
+                      probs=p.t.up, na.rm=TRUE)
+  delta.t.low <- apply(ETA1t, 1, quantile,
+                       probs=p.t.low, na.rm=TRUE)
+  if(decrease){
+    delta.t.up[delta.t.up>0] <- 0
+    delta.t.low[delta.t.low>0] <- 0
+  }
+  deltas <- list(delta.a.up=delta.a.up,delta.a.low=delta.a.low,
+                 delta.t.up=delta.t.up,delta.t.low=delta.t.low)
+  
+  S <- WEI
+  S <- 1-S
+  if (print.all) cat("Fitting and forecasting data ...", "\n")
+  FIT <- CPSfunction(Y=Z2, E=E2, WEI=WEI, lambdas=lambdas.hat,
+                     deltas=deltas, S=S, verbose=FALSE)
+  
+  if (print.last) cat("converged at iter.", FIT$it, ", conv. criteria", FIT$d.dev, '\n')
+  ## compute e0 and e-dagger for the point estimates
+  if (print.all) cat("Computing cohort estimated log-mortality ...", "\n")
   
   ## extract cohort forecasts
   # library(fields)
@@ -46,16 +201,17 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
   MX <- Z/E
   cMX <- cZ/cE
   
-  ## fitted rates
-  MX.fit <- exp(fit$ETA)
-  # image.plot(t,x,t(log(MX)))
-  # image.plot(t,x,t(log(MX.fit)))
+  ## fitted rates (only observed period)
+  MX.fit <- exp(FIT$ETA[,1:n])
+  # library(fields)
+  # image.plot(t1,x,t(log(MX)))
+  # image.plot(t1,x,t(log(MX.fit)))
   cMX.fit <- matrix(NA,nrow(cMX),ncol(cMX))
   ## for the last observed year, cohort data can't be computed as it needs 
-  ## the first forecast. Hence include the median forecast for the first forecast year
-  MX.fore1 <- exp(apply(fit$ETA.sim[,1,],1,median))
+  ## the first forecast. Hence include the fitted forecast as obtained from CP-splines
+  MX.fore1 <- exp(FIT$ETA[,n+1])
   MX.fit.ext <- cbind(MX.fit,MX.fore1)
-  # image(c(t,2020),x,t(log(MX.fit.ext)))
+  # image(c(t1,2010),x,t(log(MX.fit.ext)))
   AGES <- matrix(ages,nrow=m,ncol=n+1)
   PERIODS <- matrix(rep(c(years,years[n]+1),each=m),nrow=m)
   COHORTS  <-  PERIODS - AGES
@@ -75,9 +231,25 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
       }
     }
   }
-  # image.plot(c,x,t(log(cMX)))
-  # image.plot(c,x,t(log(cMX.fit)))
   
+  if (print.all) cat("Simulating coefficients ...", "\n")
+  require(MASS)
+  ALPHAS.sim <- mvrnorm(n=n.sim, 
+                        mu=c(FIT$ALPHAS),
+                        Sigma=FIT$Valphas)
+  Ba <- FIT$Ba
+  Bt <- FIT$Bt
+  ## empty matrices/arrays to store bootstrap results
+  ETA.sim <- array(NA,dim=c(nrow(Z),ncol(Z2),n.sim))
+  for(sim in 1:n.sim){
+    alphas.s <- ALPHAS.sim[sim,]
+    ALPHAS.s <- matrix(alphas.s, ncol(Ba), ncol(Bt))
+    ETA.s <- MortSmooth_BcoefB(Ba, Bt, ALPHAS.s)
+    ## saving outcomes
+    ETA.sim[,,sim] <- ETA.s
+  }
+  
+  if (print.all) cat("Computing cohort simulated log-mortality, ex and e-dagger ...", "\n")
   ## all time periods, and APC matrices
   t <- years
   t.all <- c(t,t.fore)
@@ -90,7 +262,8 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
   ETA <- LE <- ED <- array(NA,dim=c(m,nc,n.sim))
   sim <- 1
   for (sim in 1:n.sim){
-    MX.temp <- cbind(MX.fit,exp(fit$ETA.sim[,,sim]))
+    if (print.sim & sim %in% round(seq(0,n.sim,length.out = 11))) cat("simulation",sim,"/",n.sim,"\n")
+    MX.temp <- exp(ETA.sim[,,sim])
     cMX.temp <- matrix(NA,m,nc)
     i <- 1
     for (i in 1:nc){
@@ -116,7 +289,7 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
       ))
     
     ETA[,,sim] <- log(df.temp$rates)
-
+    
     ## life-table
     for (i in 1:nc){
       if (!is.na(ETA[1,i,sim])){
@@ -127,246 +300,11 @@ diagonal_CPS_fun <- function(ages,years,cohorts,
     }
     
   }
-  
   ## output
   out <- list(LE.sim=LE,ED.sim=ED,ETA.sim=ETA)
-  return(out)
-  
 }
 
 
-## Starting values of LC model
-LC_starting_pars <- function(Z,E){
-  ## dimensions
-  m <- nrow(Z)
-  n <- ncol(Z)
-  ## starting values
-  One <- matrix(1, nrow=n, ncol = 1)    
-  Fit <- log((Z + 1)/(E + 2))
-  ## for Alpha, take mean of log death rates
-  Alpha <- apply(Fit/n,1,sum,na.rm=T)
-  ## for Beta, take alpha and normalize to sum to one
-  Beta <- matrix(1 * Alpha, ncol = 1)
-  sum.Beta <- sum(Beta) 
-  Beta <- Beta / sum.Beta
-  ## for Kappa, standardize a series from n to 1 
-  Kappa <- matrix(seq(n, 1, by = -1), nrow = n, ncol = 1)
-  Kappa <- Kappa - mean(Kappa)
-  Kappa <- Kappa / sqrt(sum(Kappa * Kappa))
-  ## return list
-  out <- list(Alpha=Alpha,Beta=Beta,Kappa=Kappa,One=One)
-}
-
-
-## function for fitting the cohort LC model 
-fit_period_LC_fun <- function(ages,years,
-                              Z,E,sex,n.sim=100,n.fore,
-                              lambdaA=0,lambdaB=0,
-                              Alpha=NULL,Beta=NULL,Kappa=NULL,
-                              max.iter=1000,tol=1e-05,
-                              print.last=T,print.all=F){
-  ## dimensions
-  m <- nrow(Z)
-  n <- ncol(Z)
-  mn <- m*n
-  ## Weights: no exposures, missing data, dummy periods
-  W <- matrix(1,m,n)
-  W[E==0] <- 0
-  W[is.na(E)] <- 0
-  ## get starting values
-  fict.Z <- 10^3
-  One <- matrix(1, nrow=n, ncol = 1)
-  if (is.null(Alpha)){
-    StartingPars <- LC_starting_pars(Z,E)
-    Alpha <- StartingPars$Alpha
-    Beta <- StartingPars$Beta
-    Kappa <- StartingPars$Kappa
-  }
-  ETA <- Alpha %*% t(One) + Beta %*% t(Kappa)
-  Z.hat <- E * exp(ETA)
-  Z.hat[is.na(Z.hat)] <- fict.Z
-
-  ## fitting model
-  fit <- period_LC_iterations(ages=ages,years=years,n.sim=n.sim,n.fore=n.fore,
-                              Alpha=Alpha,Beta=Beta,Kappa=Kappa,ETA=ETA,W=W,
-                              Z.hat=Z.hat,Z=Z,E=E,sex=sex,
-                              lambdaA=lambdaA,lambdaB=lambdaB,lambdaK=0,
-                              max.iter=max.iter,tol=tol,print.last=print.last,print.all=print.all)
-  
-  return(fit)
-}
-
-period_LC_iterations <- function(ages,years,n.sim,n.fore,
-                                 Alpha,Beta,Kappa,ETA,W,Z.hat,Z,E,sex,
-                                 lambdaA,lambdaB,lambdaK,
-                                 max.iter,tol,
-                                 print.last,print.all){
-  
-  ## dimensions
-  m <- nrow(Z)
-  n <- ncol(Z)
-  ## penalties and difference-matrices (for smooth LC)
-  Dm <- diff(diag(m), diff=2)
-  Dn <- diff(diag(n), diff=2)
-  Pa <- lambdaA * (t(Dm) %*% Dm) 
-  Pb <- lambdaB * (t(Dm) %*% Dm)
-  Pk <- lambdaK * (t(Dn) %*% Dn)
-  ## fictitious deaths and vector One
-  One <- matrix(1, nrow=n, ncol = 1)
-  fict.Z <- 10^3
-  ## convergence
-  conv <- T
-  ## iterations
-  for (iter in 1:max.iter){
-    Alpha.old <- Alpha
-    Beta.old <- Beta
-    Kappa.old <- Kappa
-    ETA.old <- ETA
-    
-    ## update alphas 
-    c11 <- apply(W*Z.hat, 1, sum) ## sum of fitted deaths for each age
-    ## model matrix for alphas
-    Ca <- diag(as.vector(c11))
-    Z.diff <- Z - Z.hat
-    Z.diff[is.na(Z.diff)] <- fict.Z
-    ra <- apply(W*Z.diff, 1, sum) ## sum of the difference between actual and fitted deaths for each age
-    tryAlpha <- try(solve(Ca + Pa, ra + Ca %*% Alpha.old),silent=T)
-    if(class(tryAlpha)[1]=="try-error" | any(is.na(tryAlpha)) | all(tryAlpha==0)){
-      conv <- F
-      break
-    }else{
-      Alpha <- c(tryAlpha)
-    }
-    
-    ## fitted linear predictor 
-    ETA <- Alpha %*% t(One) + Beta %*% t(Kappa)
-    ## fitted expected values 
-    Z.hat <- E * exp(ETA)
-    Z.hat[is.na(Z.hat)] <- fict.Z
-    
-    ## update betas
-    c22 <- (W*Z.hat) %*% Kappa^2 ## actual deaths by kappa-squared
-    ## model matrix for betas
-    Cb <- diag(as.vector(c22))
-    Z.diff <- Z - Z.hat
-    Z.diff[is.na(Z.diff)] <- fict.Z
-    rb <- (W*Z.diff) %*% Kappa ## sum of the (difference between actual and fitted deaths multiplied by kappa) for each age
-    tryBeta <- try(solve(Cb + Pb, rb + Cb %*% Beta.old),silent=T)
-    if(class(tryBeta)[1]=="try-error" | any(is.na(tryBeta)) | all(tryBeta==0)){
-      conv <- F
-      break
-    }else{
-      Beta <- c(tryBeta)
-    }
-    
-    ## fitted linear predictor 
-    ETA <- Alpha %*% t(One) + Beta %*% t(Kappa)
-    ## fitted expected values 
-    Z.hat <- E * exp(ETA)
-    Z.hat[is.na(Z.hat)] <- fict.Z
-    
-    ## model matrix for kappas
-    Ck <- diag(as.vector(t(W*Z.hat)%*%(Beta^2)))
-    Z.diff <- Z - Z.hat
-    Z.diff[is.na(Z.diff)] <- fict.Z
-    rk  <- t(W*Z.diff) %*% Beta ## ## sum of the (difference between actual and fitted deaths multiplied by beta) for each year
-    tryKappa   <- try(solve(Ck + Pk, rk + Ck %*% Kappa.old),silent=T)
-    if(class(tryKappa)[1]=="try-error" | any(is.na(tryKappa)) | all(tryKappa==0)){
-      conv <- F
-      break
-    }else{
-      Kappa <- c(tryKappa)
-    }
-    
-    ## constraint for kappas
-    Kappa <- Kappa - mean(Kappa)
-    Kappa <- Kappa / sqrt(sum(Kappa*Kappa))
-    
-    ## fitted linear predictor 
-    ETA <- Alpha %*% t(One) + Beta %*% t(Kappa)
-    ## fitted expected values 
-    Z.hat <- E * exp(ETA)
-    Z.hat[is.na(Z.hat)] <- fict.Z
-    
-    ## break if reaching max iter
-    if (iter==max.iter){
-      conv <- F
-      break
-    }
-    
-    ## torelance criterion
-    crit <- max(abs(ETA - ETA.old))
-    if (crit < tol & conv){
-      if (print.last) cat("converged at iter.",iter,", conv. criteria", crit, '\n')
-      break
-    } 
-    if (print.all) cat(iter, crit, '\n')
-  }
-  
-  if (conv){
-    ## constraints
-    sum.Beta <- sum(Beta)
-    Beta <- Beta / sum.Beta
-    Kappa <- Kappa * sum.Beta
-    ## fitted linear predictor 
-    ETA <- Alpha %*% t(One) + Beta %*% t(Kappa)
-    ## fitted expected values 
-    Z.hat <- E * exp(ETA)
-    
-    ## compute life exp and e-dagger
-    ## taking observed rates where possible and forecast ones
-    source("funs/LifetableMX.R")
-    ## forecasting region
-    MXLC <- exp(ETA)
-    LE.hat <- ED.hat <- matrix(NA,m,n) 
-    for (i in 1:n){
-      lt <- lifetable.mx(x=ages,mx=MXLC[,i],sex=sex)
-      LE.hat[,i] <- lt$ex
-      ED.hat[,i] <- eDagger(lt)  
-    }
-    ## compute deviance, ED, BIC 
-    DEV <- 2 * sum(W * Z * log(ifelse(Z==0, 1e-08, Z) / ifelse(Z.hat==0, 1e-08, Z.hat)),na.rm = T)
-    EDpars <- sum(diag(solve(Ca + Pa,Ca))) + sum(diag(solve(Cb + Pb, Cb))) + sum(diag(solve(Ck+ Pk, Ck)))
-    ED <- EDpars - 2   ## remove two constrains 
-    BIC <- DEV + log(sum(W)) * ED
-    ## compute deviance residuals
-    t1 <- sign(Z-Z.hat)
-    t2 <- 2*(W * Z * log(ifelse(Z==0, 1e-08, Z) / ifelse(Z.hat==0, 1e-08, Z.hat))-W*(Z-Z.hat))
-    DEVres <- t1*sqrt(t2)
-    
-    ##--- forecasting with LC simulations
-    require(forecast)
-    RWD <- Arima(ts(Kappa,start = years[1]), order=c(0,1,0), include.drift=TRUE) 
-    
-    ## define matrices to store simulation results
-    One.fore <- matrix(1, nrow=n.fore, ncol = 1)
-    Kappa.sim <- matrix(NA,nrow=n.fore,ncol=n.sim)
-    ETA.sim <- array(NA,dim=c(m,n.fore,n.sim))
-    
-    ## simulate future K
-    i <- 1
-    for(i in 1:n.sim){
-      ## generate simulation with bootsrapping
-      kappa.sim <- simulate(RWD, nsim=n.fore,
-                            future=TRUE, bootstrap=TRUE)
-      # plot(y1,kappa,ylim=range(kappa,kappa.sim),xlim=range(y))
-      # lines(yF,kappa.sim)
-      
-      ## derive the bootsrap values
-      Kappa.sim[,i] <- kappa.sim
-      ETA.sim[,,i] <- Alpha %*% t(One.fore) + Beta %*% t(kappa.sim)
-    }
-    
-    ## output
-    out <- list(Alpha=Alpha,Beta=Beta,Kappa=Kappa,ETA=ETA,Z.hat=Z.hat,LE.hat=LE.hat,
-                ED.hat=ED.hat,lambda=lambdaA,Kappa.sim=Kappa.sim,ETA.sim=ETA.sim,
-                DEV=DEV,ED=ED,BIC=BIC,DEVres=DEVres,iter=iter,crit=crit,conv=conv)
-  }else{
-    if (print.last) cat("no convergence", '\n')
-    out <- list(conv=conv)
-  }
-  return(out)
-}
-
-
-
+# bla <- diagonal_CPS_fun(ages=x,years=t1,cohorts=c1,
+#                         Z=Z1,E=E1,cZ=cZ1,cE=cE1,
+#                         sex=sex)

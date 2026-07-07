@@ -41,6 +41,7 @@ library(MASS)
 
 ## load useful functions
 source("funs/diagonalLC.R")
+source("funs/diagonalCPsplines.R")
 source("funs/cohortLC.R")
 source("funs/cohortLLC.R")
 source("funs/CCPsplines.R")
@@ -108,6 +109,10 @@ for (i in 1:length(all.cou)){
     diagonal_LC <- diagonal_LC_fun(ages=x,years=t1,cohorts=c1,
                                    Z=Z1,E=E1,cZ=cZ1,cE=cE1,sex=sex,
                                    n.sim=n.sim)
+    ## fitting the diagonal CP-splines model
+    diagonal_CPS <- diagonal_CPS_fun(ages=x,years=t1,cohorts=c1,
+                                     Z=Z1,E=E1,cZ=cZ1,cE=cE1,
+                                     sex=sex, n.sim=n.sim)
     ## fitting the cohort LC model (only for FRATNP and SWE)
     if (cou == "FRATNP"| cou == "SWE"){
       cohort_LC <- cohort_LC_fun(ages=x,cohorts=c1,Z=cZ1,E=cE1,sex=sex,
@@ -124,6 +129,8 @@ for (i in 1:length(all.cou)){
     ## compute out-of-sample statistics for different models
     oos_dLC <- OutOfSample_function(ages=x,cohorts = c,h.out = h.out,cMX.obs = cMX,
                                     cMX.sim=exp(diagonal_LC$ETA.sim),alpha=alpha)
+    oos_dCPS <- OutOfSample_function(ages=x,cohorts = c,h.out = h.out,cMX.obs = cMX,
+                                     cMX.sim=exp(diagonal_CPS$ETA.sim),alpha=alpha)
     if (cou == "FRATNP"| cou == "SWE"){
       oos_LC <- OutOfSample_function(ages=x,cohorts = c,h.out = h.out,cMX.obs = cMX,
                                      cMX.sim=exp(cohort_LC$ETA.sim),alpha=alpha)
@@ -138,13 +145,13 @@ for (i in 1:length(all.cou)){
     ## saving results of interest
     
     ## RMSE
-    rmse.temp <- round(c(oos_dLC$rmse,oos_LC$rmse,oos_LLC$rmse,oos_CCP$rmse),2)
+    rmse.temp <- round(c(oos_dLC$rmse,oos_dCPS$rmse,oos_LC$rmse,oos_LLC$rmse,oos_CCP$rmse),2)
     
     ## CPD
-    cpd.temp <- round(c(oos_dLC$cpd,oos_LC$cpd,oos_LLC$cpd,oos_CCP$cpd),2)
+    cpd.temp <- round(c(oos_dLC$cpd,oos_dCPS$cpd,oos_LC$cpd,oos_LLC$cpd,oos_CCP$cpd),2)
     
     ## DSS
-    dss.temp <- round(c(oos_dLC$dss,oos_LC$dss,oos_LLC$dss,oos_CCP$dss),2)
+    dss.temp <- round(c(oos_dLC$dss,oos_dCPS$dss,oos_LC$dss,oos_LLC$dss,oos_CCP$dss),2)
     
     ## differences in RMSE between CCP and dLC
     rmse.age.dLC <- oos_dLC$df.rmse %>% dplyr::select(ages,cohorts,dLC=sq.diff) 
@@ -154,7 +161,7 @@ for (i in 1:length(all.cou)){
     
     ## all results
     res.temp <- c(rmse.temp,cpd.temp,dss.temp)
-    df.res.temp <- tibble(cou=cou,sex=sex,model=c("dLC","LC","LLC","CCP"),
+    df.res.temp <- tibble(cou=cou,sex=sex,model=c("dLC","dCPS","LC","LLC","CCP"),
                           rmse=rmse.temp,cpd=cpd.temp,dss=dss.temp)
     
     ## saving results
