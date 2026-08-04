@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 42: tabulating Table A1
+##  FILE 41: tabulating Table 1
 ##
 ##  sessionInfo() details:
 ##  
@@ -29,12 +29,37 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 library(tidyverse)
 
 ## loading previously saved data 
-load(file = "results/12_out20y.Rdata")
+load(file = "results/11_out10y.Rdata")
 
 ## printing values for manuscript table
-for (i in 1:nrow(res)){
-  print(paste(res[i,], collapse = " & "))
+
+## observations
+print(paste(df.obs$obs, collapse = " & "))
+
+## effective dimensions
+df.ed %>% 
+  filter(model=="LC") %>% pull(ed) %>% paste(., collapse = " & ")
+df.ed %>% 
+  filter(model=="LLC") %>% pull(ed) %>% paste(., collapse = " & ")
+df.ed %>% 
+  filter(model=="CCP") %>% pull(ed) %>% paste(., collapse = " & ")
+
+## here for RMSE, CPD and DSS
+tab <- cbind(
+  Australia_F = res[1,],
+  Australia_M = res[2,],
+  France_F    = res[3,],
+  France_M    = res[4,],
+  Sweden_F    = res[5,],
+  Sweden_M    = res[6,],
+  USA_F       = res[7,],
+  USA_M       = res[8,]
+)
+
+for (i in 1:nrow(tab)){
+  print(paste(tab[i,], collapse = " & "))
 }
+
 
 ## finding the minimum
 df.res %>% 

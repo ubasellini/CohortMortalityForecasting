@@ -57,7 +57,7 @@ df.res.long %>%
   labs(x=NULL,y="Cohort LC parameters",color="First \nYear")
 
 ## saving Figure
-ggsave(file="figs/FA1.pdf",width = 12,height=10)
+ggsave(file="figs/FS1.pdf",width = 12,height=8)
 
 ## for all years
 df.res.long %>% mutate(Year=as.numeric(Year)) %>% 

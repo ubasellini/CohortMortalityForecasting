@@ -420,6 +420,7 @@ CPSfunction <- function(Y, E, WEI, lambdas,
 ## WRAPPER FUNCTION
 CCPsplines_fun <- function(ages, cohorts, Z, E, sex,
                            simulate=FALSE, n.sim=100,
+                           lambdas = NULL,
                            levels=c(95,50),
                            print.last=TRUE, print.all=FALSE,
                            print.sim=FALSE,
@@ -444,17 +445,21 @@ CCPsplines_fun <- function(ages, cohorts, Z, E, sex,
   ## to get good starting values for the lambdas-search
   if (print.all) cat("Getting starting values ...", "\n")
   FIT0 <- PSinfant(Y=Z, E=E, WEI=WEI, lambdas=c(1,100), verbose=FALSE)
-  ## function to extract the BIC for a given lambda
-  BIC1 <- function(par){
-    FIT1 <- PSinfant(Y=Z, E=E, lambdas=par, WEI=WEI, ALPHAS.st=FIT0$ALPHAS)
-    FIT1$bic
+  if (is.null(lambdas)){
+    ## function to extract the BIC for a given lambda
+    BIC1 <- function(par){
+      FIT1 <- PSinfant(Y=Z, E=E, lambdas=par, WEI=WEI, ALPHAS.st=FIT0$ALPHAS)
+      FIT1$bic
+    }
+    ## optimizing lambdas using greedy grid search
+    if (print.all) cat("Optimizing smoothing parameters ...", "\n")
+    OPT1 <- cleversearch(BIC1, lower=c(-4, 1), upper=c(0, 5),
+                         ngrid=5, logscale=TRUE, verbose=FALSE)
+    ## optimal smoothing parameters lambdas
+    lambdas.hat <- OPT1$par
+  }else{
+    lambdas.hat <- lambdas
   }
-  ## optimizing lambdas using greedy grid search
-  if (print.all) cat("Optimizing smoothing parameters ...", "\n")
-  OPT1 <- cleversearch(BIC1, lower=c(-4, 1), upper=c(0, 5),
-                       ngrid=5, logscale=TRUE, verbose=FALSE)
-  ## optimal smoothing parameters lambdas
-  lambdas.hat <- OPT1$par
   if (print.all) cat("Optimal smoothing parameters:", lambdas.hat, "\n")
   ## estimating mortality with optimal lambdas
   if (print.all) cat("Fitting observed data and computing derivatives ...", "\n")

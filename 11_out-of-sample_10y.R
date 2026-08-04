@@ -45,6 +45,7 @@ source("funs/diagonalCPsplines.R")
 source("funs/cohortLC.R")
 source("funs/cohortLLC.R")
 source("funs/CCPsplines.R")
+source("funs/LifetableMX.R")
 source("funs/OutOfSample.R")
 
 ## all countries and sexes of interest
@@ -103,7 +104,7 @@ for (i in 1:length(all.cou)){
     cMX1 <- cZ1/cE1
     cLMX1 <- log(cMX1)
     
-    ## ---- fitting the four cohort forecasting models -----
+    ## ---- fitting the five cohort forecasting models -----
 
     ## fitting the diagonal LC model
     diagonal_LC <- diagonal_LC_fun(ages=x,years=t1,cohorts=c1,
@@ -125,7 +126,6 @@ for (i in 1:length(all.cou)){
     CCPsplines <- CCPsplines_fun(ages=x,cohorts=c1,Z=cZ1,E=cE1,sex=sex,
                                  simulate = T,n.sim = n.sim)
     
-    
     ## compute out-of-sample statistics for different models
     oos_dLC <- OutOfSample_function(ages=x,cohorts = c,h.out = h.out,cMX.obs = cMX,
                                     cMX.sim=exp(diagonal_LC$ETA.sim),alpha=alpha)
@@ -142,6 +142,18 @@ for (i in 1:length(all.cou)){
     oos_CCP <- OutOfSample_function(ages=x,cohorts = c,h.out = h.out,cMX.obs = cMX,
                                     cMX.sim=exp(CCPsplines$ETA.sim),alpha=alpha)
     
+    ## ED 
+    if (cou == "FRATNP"| cou == "SWE"){
+      ed_LC <- cohort_LC$ED
+    }else{
+      ed_LC <- NA
+    }
+    ed_LLC <- cohort_LLC$ED
+    ed_CCP <- CCPsplines$ed
+    
+    ## Observations
+    n.obs <- length(cZ1[!is.na(cZ1)])
+    
     ## saving results of interest
     
     ## RMSE
@@ -153,6 +165,9 @@ for (i in 1:length(all.cou)){
     ## DSS
     dss.temp <- round(c(oos_dLC$dss,oos_dCPS$dss,oos_LC$dss,oos_LLC$dss,oos_CCP$dss),2)
     
+    ## ED
+    ed.temp <- round(c(ed_LC,ed_LLC,ed_CCP),2)
+                     
     ## differences in RMSE between CCP and dLC
     rmse.age.dLC <- oos_dLC$df.rmse %>% dplyr::select(ages,cohorts,dLC=sq.diff) 
     rmse.age.CCP <- oos_CCP$df.rmse %>% dplyr::select(ages,cohorts,CCP=sq.diff)
@@ -163,39 +178,34 @@ for (i in 1:length(all.cou)){
     res.temp <- c(rmse.temp,cpd.temp,dss.temp)
     df.res.temp <- tibble(cou=cou,sex=sex,model=c("dLC","dCPS","LC","LLC","CCP"),
                           rmse=rmse.temp,cpd=cpd.temp,dss=dss.temp)
+    df.ed.temp <- tibble(cou=cou,sex=sex,model=c("LC","LLC","CCP"),
+                         ed=ed.temp)
+    df.obs.temp <- tibble(cou=cou,sex=sex,obs=n.obs)
     
     ## saving results
     if (i==1 & j==1){
       res <- res.temp
       df.res <- df.res.temp
       df.rmse.age <- df.rmse.age.temp
+      df.ed <- df.ed.temp
+      df.obs <- df.obs.temp
     }else{
       res <- rbind(res,res.temp) 
       df.res <- df.res %>% 
         bind_rows(df.res.temp)
       df.rmse.age <- df.rmse.age %>% 
         bind_rows(df.rmse.age.temp)
+      df.ed <- df.ed %>% 
+        bind_rows(df.ed.temp)
+      df.obs <- df.obs %>% 
+        bind_rows(df.obs.temp)
     }
     
   }
   
 }
 
-
-## printing values for manuscript table
-for (i in 1:nrow(res)){
-  print(paste(res[i,], collapse = " & "))
-}
-
-## checking
-df.res
-save(res,df.res,df.rmse.age,file = "results/11_out10y.Rdata")
-
-## finding the minimum
-df.res %>% 
-  pivot_longer(-c(cou,sex,model)) %>% 
-  group_by(cou,sex,name) %>% 
-  summarise(min   = min(value,na.rm = T),
-            model = model[which.min(value)]) %>% print(n=100)
+## saving
+save(res,df.res,df.rmse.age,df.ed,df.obs,file = "results/11_out10y.Rdata")
 
 ## END

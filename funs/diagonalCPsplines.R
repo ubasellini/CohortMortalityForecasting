@@ -110,7 +110,7 @@ diagonal_CPS_fun <- function(ages, years, cohorts,
                              decrease=TRUE,
                              levels=c(95,50),
                              print.last=TRUE,
-                             print.all=TRUE,
+                             print.all=FALSE,
                              print.sim=TRUE){
   ## printing the model being fitted
   cat("fitting the diagonal-CP-splines model", '\n')

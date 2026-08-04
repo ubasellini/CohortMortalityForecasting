@@ -29,7 +29,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 library(tidyverse)
 
 ## loading previously saved data 
-load(file = "results/11_out10y_temp.Rdata")
+load(file = "results/11_out10y.Rdata")
 
 
 df.rmse.age %>% 
@@ -53,7 +53,7 @@ df.rmse.age %>%
   ) 
 
 ## saving Figure
-ggsave(file="figs/FA2.pdf",width = 12,height=8)
+ggsave(file="figs/FS3.pdf",width = 12,height=8)
 
 
 ## END
