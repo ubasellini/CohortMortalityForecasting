@@ -152,6 +152,15 @@ for (i in 1:length(all.cou)){
     ed_LLC <- cohort_LLC$ED
     ed_CCP <- CCPsplines$ed
     
+    ## BIC
+    if (cou == "FRATNP"| cou == "SWE"){
+      bic_LC <- cohort_LC$BIC
+    }else{
+      bic_LC <- NA
+    }
+    bic_LLC <- cohort_LLC$BIC
+    bic_CCP <- CCPsplines$bic
+    
     ## Observations
     n.obs <- length(cZ1[!is.na(cZ1)])
     
@@ -169,12 +178,17 @@ for (i in 1:length(all.cou)){
     ## ED
     ed.temp <- round(c(ed_LC,ed_LLC,ed_CCP),2)
     
+    ## BIC
+    bic.temp <- round(c(bic_LC,bic_LLC,bic_CCP),2)
+    
     ## all results
     res.temp <- c(rmse.temp,cpd.temp,dss.temp)
     df.res.temp <- tibble(cou=cou,sex=sex,model=c("dLC","dCPS","LC","LLC","CCP"),
                           rmse=rmse.temp,cpd=cpd.temp,dss=dss.temp)
     df.ed.temp <- tibble(cou=cou,sex=sex,model=c("LC","LLC","CCP"),
                          ed=ed.temp)
+    df.bic.temp <- tibble(cou=cou,sex=sex,model=c("LC","LLC","CCP"),
+                          bic=bic.temp)
     df.obs.temp <- tibble(cou=cou,sex=sex,obs=n.obs)
     
     ## saving results
@@ -182,6 +196,7 @@ for (i in 1:length(all.cou)){
       res <- res.temp
       df.res <- df.res.temp
       df.ed <- df.ed.temp
+      df.bic <- df.bic.temp
       df.obs <- df.obs.temp
     }else{
       res <- rbind(res,res.temp) 
@@ -189,6 +204,8 @@ for (i in 1:length(all.cou)){
         bind_rows(df.res.temp)
       df.ed <- df.ed %>% 
         bind_rows(df.ed.temp)
+      df.bic <- df.bic %>% 
+        bind_rows(df.bic.temp)
       df.obs <- df.obs %>% 
         bind_rows(df.obs.temp)
     }
@@ -201,6 +218,6 @@ for (i in 1:length(all.cou)){
 
 
 ## saving
-save(res,df.res,df.ed,df.obs,file = "results/12_out20y.Rdata")
+save(res,df.res,df.ed,df.bic,df.obs,file = "results/12_out20y.Rdata")
 
 ## END

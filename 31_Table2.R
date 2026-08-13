@@ -44,6 +44,14 @@ df.ed %>%
 df.ed %>% 
   filter(model=="CCP") %>% pull(ed) %>% paste(., collapse = " & ")
 
+## BIC
+df.bic %>% 
+  filter(model=="LC") %>% pull(bic) %>% paste(., collapse = " & ")
+df.bic %>% 
+  filter(model=="LLC") %>% pull(bic) %>% paste(., collapse = " & ")
+df.bic %>% 
+  filter(model=="CCP") %>% pull(bic) %>% paste(., collapse = " & ")
+
 ## here for RMSE, CPD and DSS
 tab <- cbind(
   Australia_F = res[1,],
