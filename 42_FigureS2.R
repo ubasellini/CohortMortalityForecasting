@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 25: plotting Figure 5
+##  FILE 42: plotting Figure S2
 ##
 ##  sessionInfo() details:
 ##  

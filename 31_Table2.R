@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 41: tabulating Table 1
+##  FILE 31: tabulating Table 2 of main manuscript
 ##
 ##  sessionInfo() details:
 ##  

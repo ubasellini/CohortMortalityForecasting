@@ -1,7 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
 ##  FILE 13: generating the main results of the paper 
-##           (Section 3.2)
 ##
 ##  sessionInfo() details:
 ##  

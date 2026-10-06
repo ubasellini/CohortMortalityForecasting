@@ -1,6 +1,6 @@
 ## --------------------------------------------------------- ##
 ##
-##  FILE 14: making sensitivity analysis to be plotted in Fig A1
+##  FILE 14: making sensitivity analysis to be plotted in Supp Materials
 ##
 ##  sessionInfo() details:
 ##  
