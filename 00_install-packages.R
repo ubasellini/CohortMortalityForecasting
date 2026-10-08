@@ -21,9 +21,12 @@
 install.packages("tidyverse")
 install.packages("viridis")
 install.packages("HMDHFDplus")
-install.packages("forecasts")
-install.packages("MASS")
 install.packages("forecast")
+install.packages("MASS")
+install.packages("ggplot2")
+install.packages("ggtext")
+install.packages("patchwork")
+install.packages("ggrepel")
 install.packages("devtools")
 
 ## install archived packages

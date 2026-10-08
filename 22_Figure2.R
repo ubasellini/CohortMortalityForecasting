@@ -29,6 +29,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 ## loading packages
 library(tidyverse)
 library(viridis)
+library(ggtext)
 
 ## loading data
 load(file=paste0("data/input/all_countries",".Rdata"))
