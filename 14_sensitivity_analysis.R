@@ -36,7 +36,7 @@ source("funs/cohortLC.R")
 my.cases <- c("SWE_F","FRATNP_M")
 
 ## loop over cases
-case <- "FRATNP_M"
+case <- "SWE_F"
 for (case in my.cases){
   
   ## load data 

@@ -23,6 +23,7 @@ install.packages("viridis")
 install.packages("HMDHFDplus")
 install.packages("forecasts")
 install.packages("MASS")
+install.packages("forecast")
 install.packages("devtools")
 
 ## install archived packages

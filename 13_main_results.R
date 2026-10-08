@@ -61,7 +61,7 @@ n.sim <- 250
 alpha <- 80
 
 ## for loop
-i <- j <- 2
+i <- j <- 1
 for (i in 1:length(all.cou)){
   ## select country
   cou <- all.cou[i]
