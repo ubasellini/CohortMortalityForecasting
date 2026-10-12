@@ -2,7 +2,7 @@
 
 This repository contains materials to fully reproduce the results of the conditionally accepted paper:
 
-Basellini U. and C.G. Camarda. Forecasting Cohort Mortality: Lee—Carter Methods and _CCP_-Splines. _International Journal of Forecasting_
+Basellini U. and C.G. Camarda. Forecasting Cohort Mortality: Lee-Carter Methods and _CCP_-Splines. _International Journal of Forecasting_
 
 
 ### Repository structure
